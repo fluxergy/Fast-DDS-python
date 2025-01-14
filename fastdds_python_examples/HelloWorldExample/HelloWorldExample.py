@@ -21,21 +21,41 @@ from threading import Condition
 
 import fastdds
 import HelloWorld
+from flask import Flask, current_app
+from flask_socketio import SocketIO, emit
+from time import sleep
+import random
+
+app = Flask(__name__)
+socketio = SocketIO(app, cors_allowed_origins='*')
+
+@socketio.on("connect")
+def my_event(message):
+    emit('connection',
+         {'data': 'connected!'})
+
+
+@app.route('/')
+def hello_world():  # put application's code here
+    return 'Hello World!'
+
 
 DESCRIPTION = """HelloWorld example for Fast DDS python bindings"""
 USAGE = ('python3 HelloWorldExample.py -p publisher|subscriber [-d domainID -m machineID]')
 
 class ReaderListener(fastdds.DataReaderListener):
-    def __init__(self):
+    def __init__(self, socketio):
         super().__init__()
+        self.socketio = socketio
 
     def on_data_available(self, reader):
         info = fastdds.SampleInfo()
         data = HelloWorld.HelloWorld()
         reader.take_next_sample(data, info)
-
-        print("Received {message} : {index}".format(message=data.message(), index=data.index()))
-
+        tempdata = data.message()
+        tempindex = data.index()
+        print("Received {message} : {index}".format(message=tempdata, index=tempindex))
+        self.socketio.emit("status update", {"data": f"{tempdata}{tempindex}"})
     def on_subscription_matched(self, datareader, info) :
         if (0 < info.current_count_change) :
             print ("Subscriber matched publisher {}".format(info.last_publication_handle))
@@ -60,29 +80,29 @@ class WriterListener (fastdds.DataWriterListener) :
             self._writer._matched_reader += 1
             self._writer._cvDiscovery.notify()
             self._writer._cvDiscovery.release()
-
-
 class Reader():
-  def __init__(self, domain):
+  def __init__(self, domain, socketio):
+    self.socketio = socketio
+    
     factory = fastdds.DomainParticipantFactory.get_instance()
     self.participant_qos = fastdds.DomainParticipantQos()
     factory.get_default_participant_qos(self.participant_qos)
     self.participant = factory.create_participant(domain, self.participant_qos)
 
     self.topic_data_type = HelloWorld.HelloWorldPubSubType()
-    self.topic_data_type.set_name("HelloWorldDataType")
+    self.topic_data_type.set_name("HelloWorld")
     self.type_support = fastdds.TypeSupport(self.topic_data_type)
     self.participant.register_type(self.type_support)
 
     self.topic_qos = fastdds.TopicQos()
     self.participant.get_default_topic_qos(self.topic_qos)
-    self.topic = self.participant.create_topic("myTopic", self.topic_data_type.get_name(), self.topic_qos)
+    self.topic = self.participant.create_topic("HelloWorldTopic", self.topic_data_type.get_name(), self.topic_qos)
 
     self.subscriber_qos = fastdds.SubscriberQos()
     self.participant.get_default_subscriber_qos(self.subscriber_qos)
     self.subscriber = self.participant.create_subscriber(self.subscriber_qos)
 
-    self.listener = ReaderListener()
+    self.listener = ReaderListener(socketio)
     self.reader_qos = fastdds.DataReaderQos()
     self.subscriber.get_default_datareader_qos(self.reader_qos)
     self.reader = self.subscriber.create_datareader(self.topic, self.reader_qos, self.listener)
@@ -95,6 +115,7 @@ class Reader():
   def run(self):
     try:
       input('Press any key to stop')
+      #time.sleep(20)
     except:
       pass
 
@@ -110,13 +131,12 @@ class Writer:
     self.participant = factory.create_participant(domain, self.participant_qos)
 
     self.topic_data_type = HelloWorld.HelloWorldPubSubType()
-    self.topic_data_type.set_name("HelloWorldDataType")
+    self.topic_data_type.set_name("HelloWorld")
     self.type_support = fastdds.TypeSupport(self.topic_data_type)
     self.participant.register_type(self.type_support)
-
     self.topic_qos = fastdds.TopicQos()
     self.participant.get_default_topic_qos(self.topic_qos)
-    self.topic = self.participant.create_topic("myTopic", self.topic_data_type.get_name(), self.topic_qos)
+    self.topic = self.participant.create_topic("HelloWorldTopic", self.topic_data_type.get_name(), self.topic_qos)
 
     self.publisher_qos = fastdds.PublisherQos()
     self.participant.get_default_publisher_qos(self.publisher_qos)
@@ -195,22 +215,23 @@ def parse_options():
   )
   return parser.parse_args()
 
+
 if __name__ == '__main__':
-  # Parse arguments
-  args = parse_options()
-  if not args.domain:
-    args.domain = 0
+    # Parse arguments
+    args = parse_options()
+    if not args.domain:
+        args.domain = 0
 
-  if args.parameter == 'publisher':
-    print('Creating publisher.')
-    writer = Writer(args.domain, args.machine)
-    writer.run()
-  elif args.parameter == 'subscriber':
-    print('Creating subscriber.')
-    reader = Reader(args.domain)
-    reader.run()
-  else:
-    print('Error: Incorrect arguments.')
-    print(USAGE)
-
-  exit()
+    if args.parameter == 'publisher':
+        print('Creating publisher.')
+        writer = Writer(args.domain, args.machine)
+        writer.run()
+    elif args.parameter == 'subscriber':
+        print('Creating subscriber.')
+        reader = Reader(args.domain, socketio)
+        #reader.run()
+    else:
+        print('Error: Incorrect arguments.')
+        print(USAGE)
+    app.run(host="0.0.0.0")
+    exit()
