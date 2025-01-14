@@ -1,6 +1,7 @@
 # Python binding HelloWorldExample
 
 This example implements a basic publication/subscription application.
+
 [Note for Fluxergy changes]
 You will need to also install Flask and flask_socketio to make this example work. Simply run 
 ``` sudo python3 -m pip install flask```
