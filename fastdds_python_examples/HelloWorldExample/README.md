@@ -4,8 +4,13 @@ This example implements a basic publication/subscription application.
 
 [Note for Fluxergy changes]
 You will need to also install Flask and flask_socketio to make this example work. Simply run 
-``` sudo python3 -m pip install flask```
-``` sudo python3 -m pip install Flask-SocketIO```
+``` 
+sudo python3 -m pip install flask
+```
+
+``` 
+sudo python3 -m pip install Flask-SocketIO
+```
 
 In order to launch the example it is required to indicate if the application is run as publisher or subcriber.
 Therefore, open two terminals and move to the folder where the Python script is located.
